@@ -1,1 +1,339 @@
-Add interactive carbon tax map
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Carbon Tax Global Map (Interactive)</title>
+
+<style>
+  body{margin:0;font-family:"Segoe UI",Arial,sans-serif;background:#eef2f7}
+  .app{display:grid;grid-template-columns:420px 1fr;min-height:100vh}
+  .panel{background:#fff;padding:20px;border-right:1px solid #e5e7eb;box-shadow:0 10px 25px rgba(0,0,0,.08)}
+  h2{margin:0 0 10px 0;font-size:20px}
+  .meta{background:#f3f7fb;padding:12px;border-left:4px solid #2563eb;margin:10px 0 15px 0;font-size:13px;line-height:1.4}
+  .legend h3{margin:14px 0 6px 0;font-size:14px}
+  .row{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:6px}
+  .dot{width:14px;height:14px;border-radius:50%}
+  .green{background:#22c55e}.yellow{background:#f59e0b}.red{background:#ef4444}.gray{background:#9ca3af}
+  .badge{min-width:54px;text-align:center;font-weight:700}
+  .details{margin-top:14px;padding:10px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;min-height:170px;font-size:13px;line-height:1.45}
+  .note{font-size:12px;color:#6b7280;margin-top:10px}
+  #chartdiv{width:100%;height:100vh}
+  .hint{position:absolute;bottom:15px;left:15px;background:rgba(255,255,255,.92);padding:8px 12px;border-radius:10px;font-size:12px;border:1px solid #e5e7eb}
+</style>
+</head>
+
+<body>
+<div class="app">
+
+  <!-- LEFT PANEL -->
+  <div class="panel">
+    <h2>Carbon Tax Impact Map</h2>
+
+    <div class="meta">
+      <b>Course:</b> BKAT5023 – Contemporary Issues in International Taxation<br>
+      <b>Assignment:</b> Carbon Tax Around the World: Effectiveness, Equity & Policy Lessons<br>
+      <b>Semester:</b> 1, 2025/2026
+    </div>
+
+    <div class="legend">
+      <h3>Performance</h3>
+      <div class="row"><span class="dot green"></span> High (🟢)</div>
+      <div class="row"><span class="dot yellow"></span> Moderate (🟡)</div>
+      <div class="row"><span class="dot red"></span> Limited (🔴)</div>
+      <div class="row"><span class="dot gray"></span> Not discussed (grey)</div>
+
+      <h3>Revenue Recycling</h3>
+      <div class="row"><span class="badge">💰⬆️</span> Effective</div>
+      <div class="row"><span class="badge">💰➡️</span> Moderate</div>
+      <div class="row"><span class="badge">💰⬇️</span> Limited</div>
+
+      <h3>Innovation</h3>
+      <div class="row"><span class="badge">💡💡</span> Strong</div>
+      <div class="row"><span class="badge">💡</span> Moderate</div>
+      <div class="row"><span class="badge">(–)</span> Weak</div>
+
+      <h3>Public Acceptance</h3>
+      <div class="row"><span class="badge">😊</span> Strong</div>
+      <div class="row"><span class="badge">😐</span> Conditional</div>
+      <div class="row"><span class="badge">☹️</span> Opposition</div>
+    </div>
+
+    <div class="details" id="detailsBox">
+      Hover a highlighted country (or the British Columbia marker) to see a one-line evidence note.
+      <br><br>
+      Click to pin details here.
+    </div>
+
+    <div class="note">
+      Only entities explicitly discussed in the study are colored. All others remain grey.
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div style="position:relative">
+    <div id="chartdiv"></div>
+    <div class="hint">Hover for evidence • Click to pin details</div>
+  </div>
+
+</div>
+
+<!-- amCharts 5 -->
+<script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/map.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/geodata/worldLow.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
+
+<script>
+/*
+  24 entities total:
+  - 23 country polygons (ISO2 codes)
+  - + 1 subnational case: British Columbia (marker)
+*/
+const COUNTRY_DATA = {
+  // EUROPE (High performers + EU context)
+  SE:{p:"high",r:"effective",i:"strong",a:"strong",
+      line:"Long-term stable carbon pricing drives strong clean-innovation and R&D response."},
+  NO:{p:"high",r:"effective",i:"strong",a:"strong",
+      line:"High institutional capacity and durable policy stability support sustained mitigation outcomes."},
+  DK:{p:"high",r:"effective",i:"strong",a:"strong",
+      line:"Integrated climate governance and consistent price signals sustain strong performance."},
+  FI:{p:"high",r:"effective",i:"strong",a:"strong",
+      line:"High-trust institutions and predictable pricing strengthen effectiveness and legitimacy."},
+
+  FR:{p:"moderate",r:"moderate",i:"moderate",a:"conditional",
+      line:"Moderate outcomes where design and distributional concerns shape implementation challenges."},
+  DE:{p:"moderate",r:"moderate",i:"moderate",a:"conditional",
+      line:"More effective when embedded in a broader EU policy mix that supports eco-innovation."},
+  IT:{p:"moderate",r:"moderate",i:"moderate",a:"conditional",
+      line:"Public support increases with climate concern; acceptance depends on perceived fairness."},
+
+  // NORTH AMERICA (Canada + subnational BC case handled as marker)
+  CA:{p:"moderate",r:"moderate",i:"moderate",a:"conditional",
+      line:"Carbon pricing can work, but outcomes depend on rate, coverage, and recycling transparency."},
+
+  // ASIA
+  CN:{p:"moderate",r:"moderate",i:"moderate",a:"conditional",
+      line:"Sector-specific efficiency gains; outcomes vary across industries and policy instruments."},
+  JP:{p:"moderate",r:"moderate",i:"moderate",a:"conditional",
+      line:"Higher effective pricing and policy design can strengthen emissions reduction outcomes."},
+  KR:{p:"moderate",r:"moderate",i:"moderate",a:"conditional",
+      line:"Stronger mitigation is associated with higher tax intensity and supportive policy settings."},
+
+  ID:{p:"limited",r:"limited",i:"weak",a:"conditional",
+      line:"CGE evidence shows short-run welfare losses; compensation is needed to sustain support."},
+  MY:{p:"limited",r:"limited",i:"weak",a:"conditional",
+      line:"ASEAN readiness is early-stage; administrative and fiscal constraints limit effectiveness."},
+  TH:{p:"limited",r:"limited",i:"weak",a:"conditional",
+      line:"Fragmented governance capacity constrains broad coverage and consistent enforcement."},
+  VN:{p:"limited",r:"limited",i:"weak",a:"conditional",
+      line:"Institutional capacity-building is central for credible implementation and compliance."},
+  PH:{p:"limited",r:"limited",i:"weak",a:"conditional",
+      line:"Regional coordination gaps and limited administrative readiness weaken policy performance."},
+
+  // AFRICA
+  ZA:{p:"limited",r:"limited",i:"weak",a:"opposition",
+      line:"Threshold effect: rates below a critical level produce limited emissions response."},
+
+  // LATIN AMERICA
+  MX:{p:"limited",r:"limited",i:"weak",a:"conditional",
+      line:"Political feasibility improves when revenues are visibly recycled to address equity concerns."},
+  AR:{p:"limited",r:"limited",i:"weak",a:"conditional",
+      line:"Implementation barriers and trust constraints can dilute outcomes without transparent recycling."},
+
+  // “No national / weak national” cases discussed (kept as limited to match your earlier map logic)
+  US:{p:"limited",r:"limited",i:"moderate",a:"conditional",
+      line:"No federal carbon tax; policy remains fragmented despite climate-policy rationale."},
+  SA:{p:"limited",r:"limited",i:"weak",a:"conditional",
+      line:"National carbon taxation not established; policy absence limits economy-wide signals."},
+  RU:{p:"limited",r:"limited",i:"weak",a:"conditional",
+      line:"National carbon tax not implemented; governance and policy choices keep signals weak."},
+  AU:{p:"limited",r:"limited",i:"weak",a:"opposition",
+      line:"National carbon pricing was repealed; political resistance shaped policy reversal."}
+};
+
+// 24th entity (subnational case) as a marker
+const BC_CASE = {
+  name:"British Columbia (Canada)",
+  lat:49.2827,  // Vancouver
+  lon:-123.1207,
+  p:"moderate", r:"moderate", i:"moderate", a:"conditional",
+  line:"Mixed outcomes: modest sector declines but limited aggregate impact due to low effective rate and exemptions."
+};
+
+function perfColor(p){
+  if(p==="high") return 0x22c55e;
+  if(p==="moderate") return 0xf59e0b;
+  return 0xef4444;
+}
+function perfEmoji(p){
+  if(p==="high") return "🟢";
+  if(p==="moderate") return "🟡";
+  return "🔴";
+}
+function recycleEmoji(r){
+  if(r==="effective") return "💰⬆️";
+  if(r==="moderate") return "💰➡️";
+  return "💰⬇️";
+}
+function innovEmoji(i){
+  if(i==="strong") return "💡💡";
+  if(i==="moderate") return "💡";
+  return "(–)";
+}
+function acceptEmoji(a){
+  if(a==="strong") return "😊";
+  if(a==="conditional") return "😐";
+  return "☹️";
+}
+
+function tooltipFor(name, d){
+  return `${name}
+Evidence: ${d.line}
+Performance: ${perfEmoji(d.p)} ${d.p}
+Revenue recycling: ${recycleEmoji(d.r)} ${d.r}
+Innovation: ${innovEmoji(d.i)} ${d.i}
+Public acceptance: ${acceptEmoji(d.a)} ${d.a}`;
+}
+
+function pinDetails(name, d){
+  const box = document.getElementById("detailsBox");
+  box.innerHTML = `
+    <b>${name}</b><br><br>
+    <b>Evidence (one line):</b> ${d.line}<br><br>
+    <b>Performance:</b> ${perfEmoji(d.p)} ${d.p}<br>
+    <b>Revenue recycling:</b> ${recycleEmoji(d.r)} ${d.r}<br>
+    <b>Innovation:</b> ${innovEmoji(d.i)} ${d.i}<br>
+    <b>Public acceptance:</b> ${acceptEmoji(d.a)} ${d.a}
+  `;
+}
+
+am5.ready(function () {
+  const root = am5.Root.new("chartdiv");
+  root.setThemes([am5themes_Animated.new(root)]);
+
+  const chart = root.container.children.push(
+    am5map.MapChart.new(root, { projection: am5map.geoMercator() })
+  );
+
+  // Polygons (countries)
+  const series = chart.series.push(
+    am5map.MapPolygonSeries.new(root, {
+      geoJSON: am5geodata_worldLow,
+      exclude: ["AQ"]
+    })
+  );
+
+  // Default grey for not-discussed
+  series.mapPolygons.template.setAll({
+    stroke: am5.color(0xffffff),
+    strokeWidth: 1,
+    fill: am5.color(0xd1d5db),
+    tooltipText: "{name}\nNot discussed"
+  });
+
+  // Fill + tooltip for discussed countries
+  series.mapPolygons.template.adapters.add("fill", (fill, target) => {
+    const id = target.dataItem.get("id");
+    if (COUNTRY_DATA[id]) return am5.color(perfColor(COUNTRY_DATA[id].p));
+    return fill;
+  });
+
+  series.mapPolygons.template.adapters.add("tooltipText", (text, target) => {
+    const id = target.dataItem.get("id");
+    const name = target.dataItem.dataContext.name;
+    if (!COUNTRY_DATA[id]) return `${name}\nNot discussed`;
+    return tooltipFor(name, COUNTRY_DATA[id]);
+  });
+
+  series.mapPolygons.template.events.on("click", ev => {
+    const id = ev.target.dataItem.get("id");
+    const name = ev.target.dataItem.dataContext.name;
+    if (!COUNTRY_DATA[id]) {
+      document.getElementById("detailsBox").innerHTML =
+        "This country is not explicitly discussed in the study (grey on the map).";
+      return;
+    }
+    pinDetails(name, COUNTRY_DATA[id]);
+  });
+
+  // Marker series for British Columbia
+  const pointSeries = chart.series.push(am5map.MapPointSeries.new(root, {}));
+
+  const bcPoint = pointSeries.pushDataItem({
+    latitude: BC_CASE.lat,
+    longitude: BC_CASE.lon,
+    name: BC_CASE.name
+  });
+
+  const bcBullet = bcPoint.bullets.push(function() {
+    const container = am5.Container.new(root, {});
+    const circle = container.children.push(
+      am5.Circle.new(root, {
+        radius: 7,
+        fill: am5.color(perfColor(BC_CASE.p)),
+        stroke: am5.color(0xffffff),
+        strokeWidth: 2
+      })
+    );
+    // tiny label dot glow
+    circle.states.create("hover", { scale: 1.25 });
+    return am5.Bullet.new(root, { sprite: container });
+  });
+
+  // Tooltip & click for BC
+  pointSeries.bullets.template.setAll({ tooltipText: tooltipFor(BC_CASE.name, BC_CASE) });
+
+  pointSeries.events.on("click", function(ev){
+    // click event on series isn't reliably per-point in all setups
+  });
+
+  // More reliable: make the circle clickable by adding an overlay button label
+  const bcLabel = pointSeries.bullets.push(function(root, dataItem) {
+    // only attach to BC
+    if (dataItem.get("name") !== BC_CASE.name) return;
+    const label = am5.Label.new(root, {
+      text: "BC",
+      centerX: am5.p50,
+      centerY: am5.p50,
+      fontSize: 10,
+      fontWeight: "700",
+      fill: am5.color(0x111827),
+      background: am5.RoundedRectangle.new(root, {
+        fill: am5.color(0xffffff),
+        fillOpacity: 0.9,
+        cornerRadiusTL: 6,
+        cornerRadiusTR: 6,
+        cornerRadiusBL: 6,
+        cornerRadiusBR: 6,
+        stroke: am5.color(0xe5e7eb)
+      }),
+      paddingTop: 2, paddingBottom: 2, paddingLeft: 6, paddingRight: 6,
+      dy: -18
+    });
+    label.events.on("click", function() {
+      pinDetails(BC_CASE.name, BC_CASE);
+    });
+    label.set("tooltipText", tooltipFor(BC_CASE.name, BC_CASE));
+    return am5.Bullet.new(root, { sprite: label });
+  });
+
+  // Also allow clicking the BC dot itself by placing a transparent button over it
+  pointSeries.bullets.push(function(root, dataItem) {
+    if (dataItem.get("name") !== BC_CASE.name) return;
+    const hit = am5.Circle.new(root, {
+      radius: 16,
+      fill: am5.color(0x000000),
+      fillOpacity: 0.001,
+      tooltipText: tooltipFor(BC_CASE.name, BC_CASE)
+    });
+    hit.events.on("click", function() {
+      pinDetails(BC_CASE.name, BC_CASE);
+    });
+    return am5.Bullet.new(root, { sprite: hit });
+  });
+
+});
+</script>
+</body>
+</html>
